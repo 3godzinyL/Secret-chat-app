@@ -1,0 +1,14 @@
+NGROK w Windows:
+1. Pobierz oficjalny ngrok: https://ngrok.com/download
+2. Dodaj ngrok.exe do PATH lub umiesc w katalogu dostepnym z PATH.
+3. Utworz konto i skopiuj authtoken.
+4. Uruchom w terminalu: ngrok config add-authtoken TWOJ_TOKEN
+5. Uruchom scripts/win/START_UMBRA.bat i wybierz 2.
+6. Otworz publiczny https://...ngrok.../panel i zaloguj sie haslem administratora.
+   Zaproszenia kopiuj z panelu otwartego po adresie ngrok (nie z localhost).
+
+UWAGA:
+- Ngrok musi pozostac uruchomiony.
+- Tunel jest publicznie dostepny. Nie udostepniaj admin hasla ani linkow osobom postronnym.
+- Sekrety sa generowane lokalnie przy pierwszym starcie; zmien domyslne haslo admina.
+- Lokalny serwer nie zapewnia end-to-end encryption; ngrok HTTPS szyfruje transport z przegladarki do tunelu.

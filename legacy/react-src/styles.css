@@ -1,0 +1,6 @@
+
+@tailwind base; @tailwind components; @tailwind utilities;
+:root{ --bg:#0a0a0a; --panel:#0e0a0d; --panel-2:#180a10; --accent:#b5174a; --muted:#b8a8b9; }
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: #b5174a; border-radius: 8px; }
+.scroll-thin::-webkit-scrollbar-track { background: #0e0a0d; }
