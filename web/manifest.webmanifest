@@ -1,0 +1,12 @@
+{
+  "name": "Umbra — Private Workspace",
+  "short_name": "UMBRA",
+  "description": "Prywatny komunikator hostowany na własnym serwerze.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#08060d",
+  "theme_color": "#08060d",
+  "icons": [{"src":"/assets/icon-192.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

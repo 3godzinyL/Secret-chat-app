@@ -1,0 +1,133 @@
+
+<!doctype html><html lang="pl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Umbra • App</title>
+<style>
+  :root{--bg:#0a0a0a;--panel:#0e0a0d;--wine:#180a10;--crimson:#b5174a;--mist:#f3f0f6}
+  *{box-sizing:border-box} body{margin:0;background:linear-gradient(135deg,#0a0a0a,#180a10);color:var(--mist);font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .row{display:flex}
+  .col{height:100vh;overflow:auto;border-right:1px solid rgba(181,23,74,.3);background:rgba(0,0,0,.35);backdrop-filter:blur(6px)}
+  #groups{width:260px} #users{width:260px;border-right:none;border-left:1px solid rgba(181,23,74,.3)}
+  #chat{flex:1;display:flex;flex-direction:column}
+  .head{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid rgba(181,23,74,.3);background:rgba(0,0,0,.45)}
+  .list{padding:8px} .item{padding:8px;border-radius:10px;cursor:pointer} .item:hover{background:rgba(181,23,74,.2)}
+  .section{padding:8px;border-bottom:1px solid rgba(181,23,74,.2)}
+  .msgs{flex:1;overflow:auto;padding:12px}
+  .bubble{max-width:70%;margin:6px 0;padding:8px 10px;border-radius:12px;background:rgba(181,23,74,.2)}
+  .mine{margin-left:auto;background:rgba(181,23,74,.6)}
+  .composer{display:flex;gap:8px;padding:8px;border-top:1px solid rgba(181,23,74,.3);background:rgba(0,0,0,.45)}
+  input,button{font:inherit} input{background:rgba(0,0,0,.4);border:1px solid rgba(181,23,74,.35);color:var(--mist);padding:10px;border-radius:10px;width:100%}
+  button{background:rgba(181,23,74,.6);border:none;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer}
+  button:hover{background:rgba(181,23,74,.8)}
+</style>
+</head><body>
+<div class="row">
+  <div id="groups" class="col">
+    <div class="section">
+      <div><b>Grupy</b></div>
+      <div class="row" style="gap:6px;margin-top:6px">
+        <input id="newGroup" placeholder="nazwa grupy"><button id="mkGroup">Utwórz</button>
+      </div>
+    </div>
+    <div id="groupList" class="list"></div>
+  </div>
+  <div id="chat" class="col">
+    <div class="head"><div id="topic">Wybierz rozmowę</div><div id="me"></div></div>
+    <div id="msgs" class="msgs"></div>
+    <div class="composer">
+      <input id="text" placeholder="Napisz wiadomość…"><button id="send">Wyślij</button>
+    </div>
+  </div>
+  <div id="users" class="col">
+    <div class="section">
+      <div><b>Użytkownicy</b></div>
+      <div class="row" style="gap:6px;margin-top:6px">
+        <input id="addSid" placeholder="SID"><button id="addUser">Dodaj</button>
+      </div>
+    </div>
+    <div id="userList" class="list"></div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const token = localStorage.getItem('token');
+if (!token){ location.href = '/'; }
+const H = (h, p={}) => fetch(h, { headers:{'Authorization':'Bearer '+token} }).then(r=>r.json());
+const J = (h, m, b) => fetch(h, { method:m, headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}, body: JSON.stringify(b||{}) }).then(async r=>({ok:r.ok, data: await r.json()}));
+let me = null, groups = [], contacts = [], active = null;
+
+async function boot(){
+  const m = await H('/api/me'); me = m.me; document.getElementById('me').innerText = me.displayName + ' • ' + me.sid;
+  await refresh();
+  const sio = io('/', { transports:['websocket'], auth:{ token } });
+  sio.on('message:new', msg => {
+    if (active && ((active.type==='channel' && msg.kind==='channel' && msg.channelId===active.id) || (active.type==='dm' && msg.kind==='dm'))) {
+      appendMsg(msg);
+    }
+  });
+}
+async function refresh(){
+  const gr = await H('/api/groups'); groups = gr.groups;
+  const cc = await H('/api/contacts'); contacts = cc.contacts;
+  renderGroups(); renderUsers();
+}
+function el(tag, cls, txt){ const e=document.createElement(tag); if(cls)e.className=cls; if(txt)e.textContent=txt; return e; }
+function renderGroups(){
+  const list = document.getElementById('groupList'); list.innerHTML='';
+  groups.forEach(g => {
+    const head = el('div','item'); head.innerHTML = '<b>'+g.name+'</b> <button data-g="'+g.id+'" class="mkch">+ kanał</button>'; list.appendChild(head);
+    g.channels.forEach(ch => {
+      const it = el('div','item'); it.textContent = '# ' + ch.name; it.onclick = ()=> openChannel(ch); list.appendChild(it);
+    });
+  });
+  document.querySelectorAll('.mkch').forEach(b=> b.onclick = async (e)=> {
+    const gid = e.target.getAttribute('data-g'); const name = prompt('Nazwa kanału:');
+    if(!name) return; const r = await J('/api/groups/'+gid+'/channels','POST',{name}); if(r.ok) refresh();
+  });
+}
+function renderUsers(){
+  const list = document.getElementById('userList'); list.innerHTML='';
+  contacts.forEach(u => {
+    const it = el('div','item'); it.textContent = u.displayName + ' • ' + u.sid; it.onclick = ()=> openDM(u); list.appendChild(it);
+  });
+}
+async function openChannel(ch){
+  active = { type:'channel', id: ch.id, label: ch.name };
+  document.getElementById('topic').textContent = 'Kanał: '+ch.name;
+  const js = await H('/api/channels/'+ch.id+'/messages');
+  const box = document.getElementById('msgs'); box.innerHTML=''; js.messages.forEach(appendMsg);
+}
+async function openDM(u){
+  active = { type:'dm', id: u.sid, toSid: u.sid, label: u.displayName };
+  document.getElementById('topic').textContent = 'DM: '+u.displayName;
+  const js = await H('/api/dm/'+u.sid+'/messages');
+  const box = document.getElementById('msgs'); box.innerHTML=''; js.messages.forEach(appendMsg);
+}
+function appendMsg(m){
+  const box = document.getElementById('msgs');
+  const b = el('div','bubble'+(m.senderSid===me.sid?' mine':''));
+  const who = el('div','muted'); who.textContent = (m.senderSid===me.sid?'Ty':m.senderSid||'•');
+  b.appendChild(who); b.appendChild(el('div','',m.content));
+  box.appendChild(b); box.scrollTop = 1e9;
+}
+document.getElementById('mkGroup').onclick = async () => {
+  const name = document.getElementById('newGroup').value.trim(); if(!name) return;
+  const r = await J('/api/groups','POST',{name}); if(r.ok) { document.getElementById('newGroup').value=''; refresh(); }
+};
+document.getElementById('addUser').onclick = async () => {
+  const sid = document.getElementById('addSid').value.trim(); if(!sid) return;
+  const r = await J('/api/contacts/add','POST',{sid}); if(r.ok){ document.getElementById('addSid').value=''; refresh(); }
+};
+document.getElementById('send').onclick = send;
+document.getElementById('text').addEventListener('keydown', e=>{ if(e.key==='Enter') send(); });
+function send(){
+  const t = document.getElementById('text'); const txt = t.value.trim(); if(!txt || !active) return;
+  const sio = io('/', { transports:['websocket'], auth:{ token } }); // temp instance to emit quickly
+  if (active.type==='channel') sio.emit('message:send', { kind:'channel', channelId: active.id, content: txt }, ()=>{});
+  else sio.emit('message:send', { kind:'dm', toSid: active.toSid, content: txt }, ()=>{});
+  t.value='';
+}
+boot();
+</script>
+</body></html>
